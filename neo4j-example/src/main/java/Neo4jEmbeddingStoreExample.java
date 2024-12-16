@@ -4,6 +4,7 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.onnx.OnnxEmbeddingModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import dev.langchain4j.model.embedding.onnx.allminilml6v2.AllMiniLmL6V2EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingSearchResult;
 import dev.langchain4j.store.embedding.EmbeddingStore;
@@ -20,7 +21,7 @@ public class Neo4jEmbeddingStoreExample {
     public static void main(String[] args) {
         EmbeddingStore<TextSegment> embeddingStore = Neo4jEmbeddingStore.builder()
                 .withBasicAuth("bolt://localhost:7687", "neo4j", "neo4jpassword")
-                .dimension(768)
+                .dimension(args.length == 1 ? 384 : 768)
                 .textProperty("content")
                 .label("entity")
                 .indexName(args[0])
@@ -28,24 +29,28 @@ public class Neo4jEmbeddingStoreExample {
                 .build();
 
         EmbeddingModel embeddingModel = null;
-        try {
-            Path tempDir = Paths.get(args[1]);
-            URL modelUrl = new URL("https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/onnx/model.onnx?download=true");
-            Path modelPath = tempDir.resolve("model.onnx");
-            if (!Files.exists(tempDir)) {
-                Files.createDirectories(tempDir);
+        if (args.length == 1) {
+            embeddingModel = new AllMiniLmL6V2EmbeddingModel();
+        } else {
+            try {
+                Path tempDir = Paths.get(args[1]);
+                URL modelUrl = new URL("https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/onnx/model.onnx?download=true");
+                Path modelPath = tempDir.resolve("model.onnx");
+                if (!Files.exists(tempDir)) {
+                    Files.createDirectories(tempDir);
+                }
+                if (!Files.exists(modelPath)) {
+                    Files.copy(modelUrl.openStream(), modelPath, REPLACE_EXISTING);
+                }
+                URL tokenizerUrl = new URL("https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/tokenizer.json?download=true");
+                Path tokenizerPath = tempDir.resolve("tokenizer.json");
+                if (!Files.exists(tokenizerPath)) {
+                    Files.copy(tokenizerUrl.openStream(), tokenizerPath, REPLACE_EXISTING);
+                }
+                embeddingModel = new OnnxEmbeddingModel(modelPath, tokenizerPath, MEAN);
+            } catch (Exception e) {
+                // ignored
             }
-            if (!Files.exists(modelPath)) {
-                Files.copy(modelUrl.openStream(), modelPath, REPLACE_EXISTING);
-            }
-            URL tokenizerUrl = new URL("https://huggingface.co/Xenova/all-mpnet-base-v2/resolve/main/tokenizer.json?download=true");
-            Path tokenizerPath = tempDir.resolve("tokenizer.json");
-            if (!Files.exists(tokenizerPath)) {
-                Files.copy(tokenizerUrl.openStream(), tokenizerPath, REPLACE_EXISTING);
-            }
-            embeddingModel = new OnnxEmbeddingModel(modelPath, tokenizerPath, MEAN);
-        } catch (Exception e) {
-            // ignored
         }
 
         String query = "ADD YOUR QUERY HERE";
